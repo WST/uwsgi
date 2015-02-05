@@ -21,7 +21,7 @@ void uwsgi_imperial_monitor_mysql_init(struct uwsgi_emperor_scanner *ues) {
 void uwsgi_imperial_monitor_mysql(struct uwsgi_emperor_scanner *ues) {
 	MYSQL *conn = mysql_init(NULL);
 
-	char *conn_string = uwsgi_str(ues->arg + 5);
+	char *conn_string = uwsgi_str(ues->arg + 8);
 	
 	uwsgi_log("connecting to MySQL %s\n", conn_string);
 	
