@@ -23,9 +23,23 @@ void uwsgi_imperial_monitor_mysql(struct uwsgi_emperor_scanner *ues) {
 
 	char *conn_string = uwsgi_str(ues->arg + 8);
 	
-	uwsgi_log("connecting to MySQL %s\n", conn_string);
+	uwsgi_log("[emperor] connecting to MySQL (group %s should exist in my.cnf)\n", conn_string);
 	
-	if(conn) mysql_close(conn);
+	mysql_options(conn, MYSQL_READ_DEFAULT_GROUP, conn_string);
+	
+	if(!mysql_real_connect(conn, NULL, NULL, NULL, NULL, 0, NULL, 0)) {
+		uwsgi_log("[emperor] %s\n", mysql_error(conn));
+		goto end;
+	}
+	
+	if(mysql_query(conn, "SELECT * FROM vassals")) {
+		uwsgi_log("[emperor] %s\n", mysql_error(conn));
+		goto end;
+	}
+	
+end:
+	uwsgi_log("[emperor] MySQL disconnecting\n");
+	mysql_close(conn);
 }
 
 
