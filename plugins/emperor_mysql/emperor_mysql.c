@@ -32,10 +32,46 @@ void uwsgi_imperial_monitor_mysql(struct uwsgi_emperor_scanner *ues) {
 		goto end;
 	}
 	
-	if(mysql_query(conn, "SELECT * FROM vassals")) {
+	char *query = uwsgi.emperor_tyrant ? "SELECT id, name, config FROM vassals" : "SELECT id, name, config FROM vassals";
+	
+	if(mysql_query(conn, query)) {
 		uwsgi_log("[emperor] %s\n", mysql_error(conn));
 		goto end;
 	}
+	
+	unsigned int cols = mysql_field_count(conn);
+	if((cols != 3) && (cols != 5)) {
+		uwsgi_log("[emperor] SQL query should return 3 or 5 columns, but not %d", cols);
+		goto end;
+	}
+	
+	MYSQL_RES *result = mysql_store_result(conn);
+	
+	MYSQL_ROW row;
+	while((row = mysql_fetch_row(result))) {
+		char *name = row[1];
+		char *config = row[2];
+		
+		uid_t vassal_uid = 0;
+		gid_t vassal_gid = 0;
+		
+		if (uwsgi.emperor_tyrant) {
+			if (cols != 5) {
+				uwsgi_log("[emperor] missing uid and gid for vassal %s\n", name);
+				continue;
+			}
+			char *q_uid = row[3];
+			char *q_gid = row[4];
+			
+			vassal_uid = uwsgi_str_num(q_uid, strlen(q_uid));
+			vassal_gid = uwsgi_str_num(q_gid, strlen(q_gid));
+		}
+		
+		char *socket_name = NULL;
+		uwsgi_emperor_simple_do(ues, name, config, 0, vassal_uid, vassal_gid, socket_name);
+	}
+	
+	// TODO: check for removed instances
 	
 end:
 	uwsgi_log("[emperor] MySQL disconnecting\n");
