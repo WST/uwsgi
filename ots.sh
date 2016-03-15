@@ -10,9 +10,14 @@ mkdir -p out/usr/bin
 mkdir -p out/usr/lib/uwsgi
 mkdir -p out/DEBIAN
 
+# Потом этот каталог удаляется
+mkdir -p /usr/lib/uwsgi
+
 mv control out/DEBIAN
 mv uwsgi out/usr/bin
 mv /usr/lib/uwsgi/*.so out/usr/lib/uwsgi
+
+# Я ведь обещал
 rm -rf /usr/lib/uwsgi
 
 fakeroot dpkg-deb --build out
