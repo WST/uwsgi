@@ -11,8 +11,8 @@ XS(XS_input_seek) {
         dXSARGS;
 	struct wsgi_request *wsgi_req = current_wsgi_req();
 
-        psgi_check_args(1);
-	uwsgi_request_body_seek(wsgi_req, SvIV(ST(0)));
+        psgi_check_args(2);
+	uwsgi_request_body_seek(wsgi_req, SvIV(ST(1)));
 
         XSRETURN(0);
 }
@@ -144,7 +144,7 @@ XS(XS_input_read) {
 			else {
 				long orig_offset = 0;
 				 // first of all get the new orig_len;   
-                                offset = abs(offset);
+                                offset = labs(offset);
                                 if (offset > (long) orig_len) {
                                         new_size = offset;
 					orig_offset = offset - orig_len;
@@ -285,7 +285,7 @@ nonworker:
 				uwsgi_log("[perl] WARNING !!! unable to build uwsgi::opt hash !!!\n");
 				goto end;
 			}
-			if (SvTYPE(SvRV(*value)) == SVt_PVAV) {
+			if (SvROK(*value) && SvTYPE(SvRV(*value)) == SVt_PVAV) {
 				if (uwsgi.exported_opts[i]->value == NULL) {
                                         av_push((AV *)SvRV(*value), newSViv(1));
                                 }
@@ -302,15 +302,15 @@ nonworker:
 				else {
 					av_push(_opt_a, newSVpv(uwsgi.exported_opts[i]->value, 0));
 				}
-				hv_store(_opts, uwsgi.exported_opts[i]->key, strlen(uwsgi.exported_opts[i]->key), newRV_inc((SV *) _opt_a), 0);
+				(void ) hv_store(_opts, uwsgi.exported_opts[i]->key, strlen(uwsgi.exported_opts[i]->key), newRV_inc((SV *) _opt_a), 0);
 			}
 		}
 		else {
 			if (uwsgi.exported_opts[i]->value == NULL) {
-				hv_store(_opts, uwsgi.exported_opts[i]->key, strlen(uwsgi.exported_opts[i]->key), newSViv(1), 0);
+				(void )hv_store(_opts, uwsgi.exported_opts[i]->key, strlen(uwsgi.exported_opts[i]->key), newSViv(1), 0);
 			}
 			else {
-				hv_store(_opts, uwsgi.exported_opts[i]->key, strlen(uwsgi.exported_opts[i]->key), newSVpv(uwsgi.exported_opts[i]->value, 0), 0);
+				(void)hv_store(_opts, uwsgi.exported_opts[i]->key, strlen(uwsgi.exported_opts[i]->key), newSVpv(uwsgi.exported_opts[i]->value, 0), 0);
 			}
 		}
 	}
@@ -338,7 +338,7 @@ PerlInterpreter *uwsgi_perl_new_interpreter(void) {
         PL_perl_destruct_level = 2;
         PL_origalen = 1;
         perl_construct(pi);
-	// over-engeneering
+	// over-engineering
         PL_origalen = 1;
 
 	return pi;
@@ -442,7 +442,6 @@ int init_psgi_app(struct wsgi_request *wsgi_req, char *app, uint16_t app_len, Pe
 		perl_eval_pv("use IO::Handle;", 1);
 		perl_eval_pv("use IO::File;", 1);
 		perl_eval_pv("use IO::Socket;", 1);
-		perl_eval_pv("use Scalar::Util;", 1);
 
 		if (uperl.argv_items || uperl.argv_item) {
 			AV *uperl_argv = GvAV(PL_argvgv);

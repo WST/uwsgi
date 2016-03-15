@@ -333,9 +333,11 @@ void uwsgi_as_root() {
 	if (getuid() > 0)
 		goto nonroot;
 
+#ifndef __RUMP__
 	if (!uwsgi.master_as_root && !uwsgi.uidname) {
 		uwsgi_log_initial("uWSGI running as root, you can use --uid/--gid/--chroot options\n");
 	}
+#endif
 
 	int in_jail = 0;
 
@@ -905,9 +907,11 @@ void uwsgi_as_root() {
 		}
 	}
 
+#ifndef __RUMP__
 	if (!getuid()) {
 		uwsgi_log_initial("*** WARNING: you are running uWSGI as root !!! (use the --uid flag) *** \n");
 	}
+#endif
 
 #ifdef UWSGI_CAP
 
@@ -1811,17 +1815,18 @@ void *uwsgi_calloc(size_t size) {
 	return ptr;
 }
 
+#ifdef AF_INET6
+#define ADDR_AF_INET_FAMILY(addrtype) (addrtype == AF_INET || addrtype == AF_INET6)
+#else
+#define ADDR_AF_INET_FAMILY(addrtype) (addrtype == AF_INET)
+#endif
 
 char *uwsgi_resolve_ip(char *domain) {
 
 	struct hostent *he;
 
 	he = gethostbyname(domain);
-	if (!he || !*he->h_addr_list || (he->h_addrtype != AF_INET
-#ifdef AF_INET6
-					 && he->h_addrtype != AF_INET6
-#endif
-	    )) {
+	if (!he || !*he->h_addr_list || !ADDR_AF_INET_FAMILY(he->h_addrtype)) {
 		return NULL;
 	}
 
@@ -2209,6 +2214,19 @@ void uwsgi_dyn_dict_del(struct uwsgi_dyn_dict *item) {
 	free(item);
 }
 
+void uwsgi_dyn_dict_free(struct uwsgi_dyn_dict **dd) {
+	struct uwsgi_dyn_dict *attr = *dd;
+
+	while(attr) {
+		struct uwsgi_dyn_dict *tmp = attr;
+		attr = attr->next;
+		if (tmp->value) free(tmp->value);
+		free(tmp);
+	}
+
+	*dd = NULL;
+}
+
 void *uwsgi_malloc_shared(size_t size) {
 
 	void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
@@ -2296,6 +2314,15 @@ struct uwsgi_regexp_list *uwsgi_regexp_custom_new_list(struct uwsgi_regexp_list 
 	return url;
 }
 
+int uwsgi_regexp_match_pattern(char *pattern, char *str) {
+
+	pcre *regexp;
+	pcre_extra *regexp_extra;
+
+	if (uwsgi_regexp_build(pattern, &regexp, &regexp_extra))
+		return 1;
+	return !uwsgi_regexp_match(regexp, regexp_extra, str, strlen(str));
+}
 
 
 #endif
@@ -3515,7 +3542,7 @@ int uwsgi_tmpfd() {
 		tmpdir = "/tmp";
 	}
 #ifdef O_TMPFILE
-	fd = open(tmpdir, O_TMPFILE | O_RDWR);
+	fd = open(tmpdir, O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR);
 	if (fd >= 0) {
 		return fd;
 	}
@@ -3884,7 +3911,6 @@ int uwsgi_kvlist_parse(char *src, size_t len, char list_separator, char kv_separ
 					}
 				}
 				va_end(ap);
-				base = ptr;
 				break;
 			}
 			else if (usl->value[i] == '\\' && !escaped) {
@@ -4454,6 +4480,7 @@ void uwsgi_setns(char *path) {
 				}
 			}
 			free(fds);
+			close(ns_fd);
 			break;
 		}
 		if (fds)
@@ -4487,6 +4514,30 @@ mode_t uwsgi_mode_t(char *value, int *error) {
 	return mode;
 }
 
+int uwsgi_wait_for_socket(char *socket_name) {
+        if (!uwsgi.wait_for_socket_timeout) {
+                uwsgi.wait_for_socket_timeout = 60;
+        }
+        uwsgi_log("waiting for %s (max %d seconds) ...\n", socket_name, uwsgi.wait_for_socket_timeout);
+        int counter = 0;
+        for (;;) {
+                if (counter > uwsgi.wait_for_socket_timeout) {
+                        uwsgi_log("%s unavailable after %d seconds\n", socket_name, counter);
+                        return -1;
+                }
+		// wait for 1 second to respect uwsgi.wait_for_fs_timeout
+		int fd = uwsgi_connect(socket_name, 1, 0);
+		if (fd < 0) goto retry;
+		close(fd);
+                uwsgi_log_verbose("%s ready\n", socket_name);
+                return 0;
+retry:
+                sleep(1);
+                counter++;
+        }
+	return -1;
+}
+
 int uwsgi_wait_for_mountpoint(char *mountpoint) {
         if (!uwsgi.wait_for_fs_timeout) {
                 uwsgi.wait_for_fs_timeout = 60;
@@ -4517,6 +4568,7 @@ retry:
                 sleep(1);
                 counter++;
         }
+	return -1;
 }
 
 // type -> 1 file, 2 dir, 0 both
@@ -4541,6 +4593,7 @@ retry:
                 sleep(1);
                 counter++;
 	}
+	return -1;
 }
 
 #if !defined(_GNU_SOURCE) && !defined(__UCLIBC__)

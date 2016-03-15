@@ -408,7 +408,7 @@ ssize_t uwsgi_append_static_path(char *dir, size_t dir_len, char *file, size_t f
 static int uwsgi_static_stat(struct wsgi_request *wsgi_req, char *filename, size_t *filename_len, struct stat *st, struct uwsgi_string_list **index) {
 
 	int ret = stat(filename, st);
-	// if non-existant return -1
+	// if non-existent return -1
 	if (ret < 0)
 		return -1;
 
@@ -459,7 +459,7 @@ int uwsgi_real_file_serve(struct wsgi_request *wsgi_req, char *real_filename, si
 		}
 	}
 #ifdef UWSGI_DEBUG
-	uwsgi_log("[uwsgi-fileserve] file %s found\n", real_filename);
+	uwsgi_log("[uwsgi-fileserve] file %s found, mimetype %s\n", real_filename, mime_type);
 #endif
 
 	// static file - don't update avg_rt after request

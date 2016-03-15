@@ -153,22 +153,7 @@ extern "C" {
 #endif
 #endif
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#include <stdio.h>
-#ifdef __UCLIBC__
-#include <sched.h>
-#endif
-#undef _GNU_SOURCE
-
-#include <stdlib.h>
-#include <stddef.h>
-#include <signal.h>
-#include <math.h>
-
-#include <sys/types.h>
-#ifdef __linux__
+#if defined(__linux__) || defined(__GNUC__)
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -176,6 +161,14 @@ extern "C" {
 #define __USE_GNU
 #endif
 #endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <signal.h>
+#include <math.h>
+
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <net/if.h>
 #ifdef __linux__
@@ -183,7 +176,6 @@ extern "C" {
 #define MSG_FASTOPEN   0x20000000
 #endif
 #endif
-#undef _GNU_SOURCE
 #include <netinet/in.h>
 
 #include <termios.h>
@@ -234,7 +226,16 @@ extern "C" {
 
 
 #include <pwd.h>
+#ifdef __CYGWIN__
+#ifdef _POSIX_C_SOURCE
+#undef _POSIX_C_SOURCE
+#endif
+#endif
 #include <grp.h>
+
+#ifdef __CYGWIN__
+int initgroups(const char *, gid_t);
+#endif
 
 
 #include <sys/utsname.h>
@@ -269,12 +270,17 @@ extern int pivot_root(const char *new_root, const char *put_old);
 #include <stdint.h>
 
 #include <sys/wait.h>
+#ifndef WAIT_ANY
+#define WAIT_ANY (-1)
+#endif
 
 #ifdef __APPLE__
 #ifndef MAC_OS_X_VERSION_MIN_REQUIRED
 #define MAC_OS_X_VERSION_MIN_REQUIRED MAC_OS_X_VERSION_10_4
 #endif
 #include <mach-o/dyld.h>
+#include <mach-o/getsect.h>
+#include <mach-o/ldsyms.h>
 #endif
 
 #include <dlfcn.h>
@@ -341,6 +347,9 @@ extern int pivot_root(const char *new_root, const char *put_old);
 #undef _XOPEN_SOURCE
 #ifdef __sun__
 #undef __EXTENSIONS__
+#endif
+#ifdef _GNU_SOURCE
+#undef _GNU_SOURCE
 #endif
 
 #define UWSGI_CACHE_FLAG_UNGETTABLE	0x01
@@ -624,7 +633,7 @@ struct uwsgi_logger {
 	int count;
 	struct msghdr msg;
 	char *buf;
-	// used by choosen logger
+	// used by chosen logger
 	char *arg;
 	struct uwsgi_logger *next;
 };
@@ -944,7 +953,7 @@ struct uwsgi_socket {
 	int (*proto_accept) (struct wsgi_request *, int);
 	// call that to parse the request (without the body)
 	int (*proto) (struct wsgi_request *);
-	// call that to write reponse
+	// call that to write response
 	int (*proto_write) (struct wsgi_request *, char *, size_t);
 	// call that to write headers (if a special case is needed for them)
 	int (*proto_write_headers) (struct wsgi_request *, char *, size_t);
@@ -1069,6 +1078,8 @@ struct uwsgi_plugin {
 
 	void (*vassal)(struct uwsgi_instance *);
 	void (*vassal_before_exec)(struct uwsgi_instance *, char **);
+
+	int (*worker)(void);
 };
 
 #ifdef UWSGI_PCRE
@@ -1077,6 +1088,8 @@ int uwsgi_regexp_match(pcre *, pcre_extra *, char *, int);
 int uwsgi_regexp_match_ovec(pcre *, pcre_extra *, char *, int, int *, int);
 int uwsgi_regexp_ovector(pcre *, pcre_extra *);
 char *uwsgi_regexp_apply_ovec(char *, int, char *, int, int *, int);
+
+int uwsgi_regexp_match_pattern(char *pattern, char *str);
 #endif
 
 
@@ -1146,6 +1159,8 @@ struct uwsgi_spooler {
 	int signal_pipe[2];
 
 	struct uwsgi_spooler *next;
+
+	time_t last_task_managed;
 };
 
 #ifdef UWSGI_ROUTING
@@ -2371,6 +2386,7 @@ struct uwsgi_server {
 	int spooler_quiet;
 	int spooler_frequency;
 
+
 	int snmp;
 	char *snmp_addr;
 	char *snmp_community;
@@ -2762,6 +2778,15 @@ struct uwsgi_server {
 	char *subscribe_with_modifier1;
 	struct uwsgi_string_list *pull_headers;
 
+	// uWSGI 2.0.10
+	struct uwsgi_string_list *emperor_wrapper_override;
+	struct uwsgi_string_list *emperor_wrapper_fallback;
+
+	// uWSGI 2.0.11
+	struct uwsgi_string_list *wait_for_socket;
+	int wait_for_socket_timeout;
+	int mem_collector_freq;
+
 	// uWSGI 2.1
 	char *fork_socket;
 	int new_argc;
@@ -2788,6 +2813,29 @@ struct uwsgi_server {
 	int emperor_tyrant_initgroups;
 	char *safe_pidfile;
 	char *safe_pidfile2;
+
+	int die_on_no_workers;
+	int spooler_cheap;
+	int cheaper_idle;
+
+	char *emperor_trigger_socket;
+	int emperor_trigger_socket_fd;
+
+	int spooler_signal_as_task;
+
+	int log_worker;
+
+	// number of args to consider part of binary_path
+	int binary_argc;
+
+	char *emperor_command_socket;
+	int emperor_command_socket_fd;
+	int emperor_wait_for_command;
+	struct uwsgi_string_list *emperor_wait_for_command_ignore;
+	int subscription_vassal_required;
+	int subscription_clear_on_shutdown;
+
+	int subscription_tolerance_inactive;
 };
 
 struct uwsgi_rpc {
@@ -3096,6 +3144,9 @@ char *uwsgi_spool_request(struct wsgi_request *, char *, size_t, char *, size_t)
 void spooler(struct uwsgi_spooler *);
 pid_t spooler_start(struct uwsgi_spooler *);
 
+int uwsgi_spooler_read_header(char *, int, struct uwsgi_header *);
+int uwsgi_spooler_read_content(int, char *, char **, size_t *, struct uwsgi_header *, struct stat *);
+
 #if defined(_GNU_SOURCE) || defined(__UCLIBC__)
 #define uwsgi_versionsort versionsort
 #else
@@ -3395,6 +3446,11 @@ struct uwsgi_subscribe_req {
 	uint16_t proto_len;
 
 	struct uwsgi_subscribe_node *(*algo) (struct uwsgi_subscribe_slot *, struct uwsgi_subscribe_node *, struct uwsgi_subscription_client *);
+
+	char *vassal;
+	uint16_t vassal_len;
+
+	uint8_t clear;
 };
 
 void uwsgi_nuclear_blast();
@@ -3516,6 +3572,7 @@ struct uwsgi_socket *uwsgi_new_shared_socket(char *);
 struct uwsgi_socket *uwsgi_del_socket(struct uwsgi_socket *);
 
 void uwsgi_close_all_sockets(void);
+void uwsgi_close_all_unshared_sockets(void);
 
 struct uwsgi_string_list *uwsgi_string_new_list(struct uwsgi_string_list **, char *);
 #ifdef UWSGI_PCRE
@@ -3602,6 +3659,7 @@ int uwsgi_simple_parse_vars(struct wsgi_request *, char *, char *);
 void uwsgi_build_mime_dict(char *);
 struct uwsgi_dyn_dict *uwsgi_dyn_dict_new(struct uwsgi_dyn_dict **, char *, int, char *, int);
 void uwsgi_dyn_dict_del(struct uwsgi_dyn_dict *);
+void uwsgi_dyn_dict_free(struct uwsgi_dyn_dict **);
 
 
 void uwsgi_apply_config_pass(char symbol, char *(*)(char *));
@@ -3674,6 +3732,9 @@ struct uwsgi_subscribe_node {
 	uint64_t backup_level;
 	//here the solution is a bit hacky, we take the first letter of the proto ('u','\0' -> uwsgi, 'h' -> http, 'f' -> fastcgi, 's' -> scgi)
 	char proto;
+
+	char vassal[0xff];
+	uint16_t vassal_len;
 };
 
 struct uwsgi_subscribe_slot {
@@ -3778,6 +3839,7 @@ void uwsgi_opt_set_str(char *, char *, void *);
 void uwsgi_opt_custom(char *, char *, void *);
 void uwsgi_opt_set_null(char *, char *, void *);
 void uwsgi_opt_set_logger(char *, char *, void *);
+void uwsgi_opt_set_worker_logger(char *, char *, void *);
 void uwsgi_opt_set_req_logger(char *, char *, void *);
 void uwsgi_opt_set_str_spaced(char *, char *, void *);
 void uwsgi_opt_add_string_list(char *, char *, void *);
@@ -3891,6 +3953,8 @@ int uwsgi_logic_opt_if_plugin(char *, char *);
 int uwsgi_logic_opt_if_not_plugin(char *, char *);
 int uwsgi_logic_opt_if_hostname(char *, char *);
 int uwsgi_logic_opt_if_not_hostname(char *, char *);
+int uwsgi_logic_opt_if_hostname_match(char *, char *);
+int uwsgi_logic_opt_if_not_hostname_match(char *, char *);
 
 
 void uwsgi_opt_resolve(char *, char *, void *);
@@ -3937,6 +4001,7 @@ time_t uwsgi_now(void);
 
 int uwsgi_calc_cheaper(void);
 int uwsgi_cheaper_algo_spare(int);
+int uwsgi_cheaper_algo_spare2(int);
 int uwsgi_cheaper_algo_backlog(int);
 int uwsgi_cheaper_algo_backlog2(int);
 int uwsgi_cheaper_algo_manual(int);
@@ -3977,7 +4042,7 @@ int uwsgi_is_file2(char *, struct stat *);
 int uwsgi_is_dir(char *);
 int uwsgi_is_link(char *);
 
-void uwsgi_receive_signal(struct wsgi_request *, int, char *, int);
+int uwsgi_receive_signal(struct wsgi_request *, int, char *, int);
 void uwsgi_exec_atexit(void);
 
 struct uwsgi_stats {
@@ -4177,6 +4242,9 @@ struct uwsgi_instance {
 
 	// uWSGI 2.1 (vassal's attributes)
 	struct uwsgi_dyn_dict *attrs;
+
+	// when 1 the instance must be manually activated
+	int suspended;
 };
 
 struct uwsgi_instance *emperor_get_by_fd(int);
@@ -4523,6 +4591,7 @@ void uwsgi_master_manage_emperor(void);
 void uwsgi_master_manage_udp(int);
 
 void uwsgi_threaded_logger_spawn(void);
+void uwsgi_threaded_logger_worker_spawn(void);
 
 void uwsgi_master_check_idle(void);
 int uwsgi_master_check_workers_deadline(void);
@@ -4946,6 +5015,7 @@ char *uwsgi_subscription_algo_name(void *);
 
 int uwsgi_wait_for_fs(char *, int);
 int uwsgi_wait_for_mountpoint(char *);
+int uwsgi_wait_for_socket(char *);
 void uwsgi_hooks_setns_run(struct uwsgi_string_list *, pid_t, uid_t, gid_t);
 char *vassal_attr_get(struct uwsgi_instance *, char *);
 int vassal_attr_get_multi(struct uwsgi_instance *, char *, int (*)(struct uwsgi_instance *, char *, void *), void *);
@@ -4953,6 +5023,7 @@ int vassal_attr_get_multi(struct uwsgi_instance *, char *, int (*)(struct uwsgi_
 int uwsgi_zeus_spawn_instance(struct uwsgi_instance *);
 
 time_t uwsgi_parse_http_date(char *, uint16_t);
+void uwsgi_spooler_cheap_check(void);
 #ifdef __cplusplus
 }
 #endif
