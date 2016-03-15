@@ -1,0 +1,8 @@
+Package: uwsgi
+Version: 1.0.0-1
+Section: misc
+Architecture: armhf
+Depends: python3, perl
+Maintainer: Alice <alice@mkpnet.ru>
+Priority: extra
+Description: OTS package containing uWSGI, an advanced webapp server
