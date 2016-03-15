@@ -12,7 +12,8 @@ mkdir -p out/DEBIAN
 
 mv control out/DEBIAN
 mv uwsgi out/usr/bin
-mv *.so out/usr/lib/uwsgi
+mv /usr/lib/uwsgi/*.so out/usr/lib/uwsgi
+rm -rf /usr/lib/uwsgi
 
 fakeroot dpkg-deb --build out
 
