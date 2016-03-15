@@ -2,6 +2,9 @@
 
 PYTHON="/usr/bin/python3"
 
+# Потом этот каталог удаляется
+mkdir -p /usr/lib/uwsgi
+
 $PYTHON uwsgiconfig.py --clean
 $PYTHON uwsgiconfig.py --build ots
 
@@ -9,9 +12,6 @@ mkdir out
 mkdir -p out/usr/bin
 mkdir -p out/usr/lib/uwsgi
 mkdir -p out/DEBIAN
-
-# Потом этот каталог удаляется
-mkdir -p /usr/lib/uwsgi
 
 mv control out/DEBIAN
 mv uwsgi out/usr/bin
