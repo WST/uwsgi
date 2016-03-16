@@ -13,7 +13,7 @@ mkdir -p out/usr/bin
 mkdir -p out/usr/lib/uwsgi
 mkdir -p out/DEBIAN
 
-mv control out/DEBIAN
+cp control out/DEBIAN
 mv uwsgi out/usr/bin
 mv /usr/lib/uwsgi/*.so out/usr/lib/uwsgi
 
