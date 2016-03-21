@@ -1,3 +1,2 @@
 /etc/uwsgi/emperor.ini
-/etc/uwsgi/vassals/*
 /etc/uwsgi/vassals/common/defaults.ini
