@@ -1,0 +1,6 @@
+#!/bin/bash
+
+systemctl stop uwsgi
+systemctl disable uwsgi
+
+exit 0

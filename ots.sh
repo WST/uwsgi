@@ -14,9 +14,8 @@ mkdir -p out/usr/lib/uwsgi
 mkdir -p out/etc/uwsgi/vassals/common
 mkdir -p out/lib/systemd/system
 mkdir -p out/etc/systemd/system
-mkdir -p out/DEBIAN
 
-cp ots/control out/DEBIAN
+cp -r ots/DEBIAN out
 cp ots/uwsgi.service out/lib/systemd/system
 cp ots/emperor.ini out/etc/uwsgi
 cp ots/defaults.ini out/etc/uwsgi/vassals/common

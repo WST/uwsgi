@@ -1,0 +1,5 @@
+#!/bin/bash
+
+systemctl enable uwsgi
+
+exit 0
