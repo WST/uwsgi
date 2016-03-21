@@ -28,4 +28,4 @@ rm -rf /usr/lib/uwsgi
 fakeroot dpkg-deb --build out
 
 rm -rf out
-mv out.deb uwsgi-2.0.12.deb
+mv out.deb uwsgi-dev.deb
