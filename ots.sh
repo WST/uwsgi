@@ -11,9 +11,15 @@ $PYTHON uwsgiconfig.py --build ots
 mkdir out
 mkdir -p out/usr/bin
 mkdir -p out/usr/lib/uwsgi
+mkdir -p out/etc/uwsgi/vassals/common
+mkdir -p out/lib/systemd/system
+mkdir -p out/etc/systemd/system
 mkdir -p out/DEBIAN
 
-cp control out/DEBIAN
+cp ots/control out/DEBIAN
+cp ots/uwsgi.service out/lib/systemd/system
+cp ots/emperor.ini out/etc/uwsgi
+cp ots/defaults.ini out/etc/uwsgi/vassals/common
 mv uwsgi out/usr/bin
 mv /usr/lib/uwsgi/*.so out/usr/lib/uwsgi
 
