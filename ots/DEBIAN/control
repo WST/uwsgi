@@ -2,7 +2,7 @@ Package: uwsgi
 Version: 1.0.0-2
 Section: misc
 Architecture: armhf
-Depends: python3, perl, openssl, libgeoip1, geoip-database
+Depends: python3, perl, openssl, libgeoip1, geoip-database, geoip-bin
 Maintainer: Alice <alice@mkpnet.ru>
 Priority: extra
 Description: OTS package containing uWSGI, an advanced webapp server
